@@ -1,0 +1,167 @@
+33,34d32
+< #include <assert.h>
+< #include <string.h>
+115,120d112
+< 
+<     //fujitsu requirement
+<     c->sequence_id = -1;
+<     c->rsp_header_state = 0;
+<     c->fujitsu_rsp_buf = NULL;
+< 
+336,348d327
+< void addFujitsuReplyHeader(redisClient *c, int bodyLen) {
+< 	char buf[128];
+< 	int n = 0;
+< 
+< 	if (c->sequence_id > 0) {
+< 		n = snprintf(buf, 128, "%s%lld:%d\r\n", FUJITSU_HEADER, c->sequence_id, bodyLen);
+< 		assert(n < 128);
+< 
+< 		addReplyString(c, buf, n);
+< 	}
+< 
+< }
+< 
+518,549d496
+< int getReplyBulkLen(redisClient *c, robj *obj) {
+<     size_t len;
+< 	
+< 	(void)c;
+< 
+<     if (obj->encoding == REDIS_ENCODING_RAW) {
+<         len = sdslen(obj->ptr);
+<     } else {
+<         long n = (long)obj->ptr;
+< 
+<         /* Compute how many bytes will take this integer as a radix 10 string */
+<         len = 1;
+<         if (n < 0) {
+<             len++;
+<             n = -n;
+<         }
+<         while((n = n/10) != 0) {
+<             len++;
+<         }
+<     }
+< 
+<     if (len < REDIS_SHARED_BULKHDR_LEN) {
+<         return sdslen((shared.bulkhdr[len])->ptr);
+< 	} else {
+< 		int l;
+< 		char buf[128];
+< 
+< 		l = ll2string(buf+1,sizeof(buf)-1,len);
+< 		return l + 3;
+< 	}
+< 
+< }
+722,727d668
+<     /*Free the fujitsu buffer */
+<     if (c->fujitsu_rsp_buf != NULL) {
+<         sdsfree(c->fujitsu_rsp_buf);
+<         c->fujitsu_rsp_buf = NULL;
+<     }
+< 
+833,865d773
+< /*
+< void processFujitsuRspHeaderIfNeeded(redisClient *c) {
+< 	int n;
+< 	listIter *iter;
+< 	listNode *node;
+< 	robj *obj;
+< 	char buf[256];
+< 	int bodyLen = 0;
+< 
+< 	if (c->sequence_id == -1 || c->rsp_header_state != 0) 
+< 		return;
+< 
+< 	if (listLength(c->reply)) {
+< 		iter = listGetIterator(c->reply, AL_START_HEAD);
+< 		while((node = listNext(iter)) != NULL) {
+< 			obj = listNodeValue(node);
+< 			bodyLen += sdslen(obj->ptr);
+< 		}
+< 		listReleaseIterator(iter);
+< 	}
+< 
+< 	if (c->bufpos > 0) bodyLen += c->bufpos;
+< 
+< 	n = snprintf(buf, 256, "%s%lld:%d\r\n", FUJITSU_HEADER, c->sequence_id, bodyLen);
+< 	assert(n < 256);
+< 
+< 	c->fujitsu_rsp_buf = sdsnew(buf);
+< 	c->fujitsu_rsp_buf = sdscatlen(c->fujitsu_rsp_buf, c->buf, c->bufpos);
+< 	c->bufpos += n;
+< 
+< 	c->rsp_header_state = 1;
+< }
+< */
+876c784
+<             nwritten = write(fd, c->buf + c->sentlen,c->bufpos - c->sentlen);
+---
+>             nwritten = write(fd,c->buf+c->sentlen,c->bufpos-c->sentlen);
+954d861
+<     c->sequence_id = -1;
+957d863
+< 
+1172,1215d1077
+< int processFujitsuHeaderIfNeeded(redisClient *c) {
+< 	int n;
+< 	long long sequence;
+< 	char *newline = NULL, *etoken = NULL;
+< 
+< 	if (c->reqtype || c->sequence_id > 0) return REDIS_OK;
+< 
+< 	newline = strchr(c->querybuf,'\r');
+< 	if (newline == NULL) {
+< 		if (sdslen(c->querybuf) > REDIS_INLINE_MAX_SIZE) {
+< 			addReplyError(c,"Protocol error: too big mbulk count string");
+< 			setProtocolError(c,0);
+< 		}
+< 		return REDIS_ERR;
+< 	}
+< 
+< 	if (newline-(c->querybuf) > ((signed)sdslen(c->querybuf)-2))
+< 		return REDIS_ERR;
+< 
+< 	if (newline[1] != '\n') 
+< 		return REDIS_ERR;
+< 
+< 
+< 	n = memcmp(c->querybuf, FUJITSU_HEADER, FUJITSU_HEADER_LEN);	
+< 	if (n != 0) return REDIS_OK;
+< 
+< 	*newline = '\0';
+< 
+< 	sequence = strtoll(c->querybuf + FUJITSU_HEADER_LEN, &etoken, 10);
+< 	if (etoken[0] != '\0') {
+< 		addReplyError(c,"Protocol error: sequence id must be digital");
+< 		setProtocolError(c,0);
+< 		return REDIS_ERR;
+< 	}
+< 
+< 	c->sequence_id = sequence;
+< 
+< 	sdsrange(c->querybuf, newline - c->querybuf + 2, -1);
+< 
+< 	if (sdslen(c->querybuf) <= 1) return REDIS_ERR;
+< 
+< 	return REDIS_OK;
+< }
+< 
+1218,1219c1080
+<     while (sdslen(c->querybuf)) {
+< 
+---
+>     while(sdslen(c->querybuf)) {
+1228,1229d1088
+<         if (processFujitsuHeaderIfNeeded(c) != REDIS_OK) break;
+< 
+1252c1111
+<             if (processCommand(c) == REDIS_OK) {
+---
+>             if (processCommand(c) == REDIS_OK)
+1254d1112
+< 			}
+1256d1113
+< 

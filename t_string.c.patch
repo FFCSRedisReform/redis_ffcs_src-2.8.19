@@ -1,0 +1,40 @@
+32,33c32
+< #include <assert.h>
+< #include <string.h>
+---
+> 
+68c67
+< 	int bodyLen;
+---
+> 
+91,94d89
+< 
+< 
+< 	bodyLen = sdslen(ok_reply != NULL ? ok_reply->ptr : (shared.ok)->ptr);
+< 	addFujitsuReplyHeader(c, bodyLen);
+104,105c99
+< 	int bodyLen;
+< 	
+---
+> 
+127,128d120
+< 			bodyLen = sdslen((shared.syntaxerr)->ptr);
+< 			addFujitsuReplyHeader(c, bodyLen);
+160d151
+< 		addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
+164,178d154
+< 		int l = 0;
+< 		l += getReplyBulkLen(c, o);
+< 
+< 		if (o->encoding == REDIS_ENCODING_RAW) {
+< 			l += sdslen(o->ptr);
+< 		} else if (o->encoding == REDIS_ENCODING_INT) {
+<             char buf[32];
+<             int len;
+<             len = ll2string(buf,sizeof(buf),(long)o->ptr);
+< 			l += len;
+< 		}
+< 
+< 		l += 2;
+< 
+< 		addFujitsuReplyHeader(c, l);

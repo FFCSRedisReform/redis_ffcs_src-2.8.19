@@ -1,0 +1,16 @@
+398,400d397
+< #define FUJITSU_HEADER "fujitsu#"
+< #define FUJITSU_HEADER_LEN 8
+< 
+525,529d521
+< 
+<     //fujitsu requirement
+<     long long sequence_id;
+<     int rsp_header_state;
+<     sds fujitsu_rsp_buf;
+971d962
+< int  getReplyBulkLen(redisClient *c, robj *obj);
+973d963
+< void addFujitsuReplyHeader(redisClient *c, int bodyLen);
+981d970
+< void addReplyString(redisClient *c, char *str, size_t len);
