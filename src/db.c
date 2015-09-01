@@ -278,7 +278,7 @@ void flushallCommand(redisClient *c) {
 }
 
 void delCommand(redisClient *c) {
-    int deleted = 0, j;
+    int deleted = 0, j, bodylen;
 
     for (j = 1; j < c->argc; j++) {
         expireIfNeeded(c->db,c->argv[j]);
@@ -290,14 +290,21 @@ void delCommand(redisClient *c) {
             deleted++;
         }
     }
+    bodylen = getReplyLongLongPrefixLen(c, deleted);
+    addFujitsuReplyHeader(c, bodylen);
     addReplyLongLong(c,deleted);
 }
 
 void existsCommand(redisClient *c) {
     expireIfNeeded(c->db,c->argv[1]);
+    int bodyLen;
     if (dbExists(c->db,c->argv[1])) {
+    	bodyLen = sdslen((shared.cone)->ptr);
+    	addFujitsuReplyHeader(c, bodyLen);
         addReply(c, shared.cone);
     } else {
+    	bodyLen = sdslen((shared.czero)->ptr);
+    	addFujitsuReplyHeader(c, bodyLen);
         addReply(c, shared.czero);
     }
 }
