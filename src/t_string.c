@@ -360,7 +360,8 @@ void incrDecrCommand(redisClient *c, long long incr) {
     oldvalue = value;
     if ((incr < 0 && oldvalue < 0 && incr < (LLONG_MIN-oldvalue)) ||
         (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) {
-        addReplyError(c,"increment or decrement would overflow");
+        //addFujitsuReplyHeader(c, strlen("increment or decrement would overflow")+7);
+		addReplyError(c,"increment or decrement would overflow");
         return;
     }
     value += incr;
@@ -373,10 +374,14 @@ void incrDecrCommand(redisClient *c, long long incr) {
     notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"incrby",c->argv[1],c->db->id);
     server.dirty++;
 
+    bodyLen = getReplyLongLongPrefixLen(c,value);
+	addFujitsuReplyHeader(c,bodyLen);
+
     addReply(c,shared.colon);
     addReply(c,new);
     addReply(c,shared.crlf);
 }
+
 
 void incrCommand(redisClient *c) {
     incrDecrCommand(c,1);
