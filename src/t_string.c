@@ -360,7 +360,7 @@ void incrDecrCommand(redisClient *c, long long incr) {
     oldvalue = value;
     if ((incr < 0 && oldvalue < 0 && incr < (LLONG_MIN-oldvalue)) ||
         (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) {
-        //addFujitsuReplyHeader(c, strlen("increment or decrement would overflow")+7);
+        addFujitsuReplyHeader(c, strlen("increment or decrement would overflow")+7);
 		addReplyError(c,"increment or decrement would overflow");
         return;
     }
@@ -381,7 +381,6 @@ void incrDecrCommand(redisClient *c, long long incr) {
     addReply(c,new);
     addReply(c,shared.crlf);
 }
-
 
 void incrCommand(redisClient *c) {
     incrDecrCommand(c,1);
