@@ -970,6 +970,7 @@ void acceptUnixHandler(aeEventLoop *el, int fd, void *privdata, int mask);
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask);
 int  getReplyBulkLen(redisClient *c, robj *obj);
 int  getReplyLongLongPrefixLen(redisClient *c, long long ll);
+int  getHashIteratorCursorToReply(redisClient *c, hashTypeIterator *hi, int what);
 void addReplyBulk(redisClient *c, robj *obj);
 void addFujitsuReplyHeader(redisClient *c, int bodyLen);
 void addReplyBulkCString(redisClient *c, char *s);

@@ -701,6 +701,33 @@ void hlenCommand(redisClient *c) {
     addReplyLongLong(c,hashTypeLength(o));
 }
 
+int getHashIteratorCursorToReply(redisClient *c, hashTypeIterator *hi, int what) {
+    int len = 0;
+    if (hi->encoding == REDIS_ENCODING_ZIPLIST) {
+        unsigned char *vstr = NULL;
+        unsigned int vlen = UINT_MAX;
+        long long vll = LLONG_MAX;
+
+        hashTypeCurrentFromZiplist(hi, what, &vstr, &vlen, &vll);
+        if (vstr) {
+            len += getReplyBulkCBufferLen(c, vlen);
+        } else {
+            len += getReplyBulkLongLongLen(c, vll);
+        }
+
+    } else if (hi->encoding == REDIS_ENCODING_HT) {
+        robj *value;
+
+        hashTypeCurrentFromHashTable(hi, what, &value);
+        len += getReplyBulkLenOrgi(c, value);
+
+    } else {
+        redisPanic("Unknown hash encoding");
+    }
+
+    return len;
+}
+
 static void addHashIteratorCursorToReply(redisClient *c, hashTypeIterator *hi, int what) {
     if (hi->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *vstr = NULL;
@@ -730,6 +757,7 @@ void genericHgetallCommand(redisClient *c, int flags) {
     hashTypeIterator *hi;
     int multiplier = 0;
     int length, count = 0;
+    int bodylen;
 
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.emptymultibulk)) == NULL
         || checkType(c,o,REDIS_HASH)) return;
@@ -738,6 +766,22 @@ void genericHgetallCommand(redisClient *c, int flags) {
     if (flags & REDIS_HASH_VALUE) multiplier++;
 
     length = hashTypeLength(o) * multiplier;
+
+    //=====================fujitsu begin
+    bodylen = getReplyLongLongPrefixLen(c, length);
+    hi = hashTypeInitIterator(o);
+    while (hashTypeNext(hi) != REDIS_ERR) {
+        if (flags & REDIS_HASH_KEY) {
+            bodylen += getHashIteratorCursorToReply(c, hi, REDIS_HASH_KEY);
+        }
+        if (flags & REDIS_HASH_VALUE) {
+            bodylen += getHashIteratorCursorToReply(c, hi, REDIS_HASH_VALUE);
+        }
+    }
+    hashTypeReleaseIterator(hi);
+	addFujitsuReplyHeader(c, bodylen);
+    //======================fujitsu end
+
     addReplyMultiBulkLen(c, length);
 
     hi = hashTypeInitIterator(o);
