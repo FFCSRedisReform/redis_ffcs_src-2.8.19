@@ -779,7 +779,7 @@ void genericHgetallCommand(redisClient *c, int flags) {
         }
     }
     hashTypeReleaseIterator(hi);
-	addFujitsuReplyHeader(c, bodylen);
+    addFujitsuReplyHeader(c, bodylen);
     //======================fujitsu end
 
     addReplyMultiBulkLen(c, length);
