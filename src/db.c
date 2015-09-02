@@ -608,7 +608,10 @@ void scanCommand(redisClient *c) {
 }
 
 void dbsizeCommand(redisClient *c) {
-    addReplyLongLong(c,dictSize(c->db->dict));
+	long long size = dictSize(c->db->dict);
+	int bodylen = getReplyLongLongPrefixLen(c, size);
+	addFujitsuReplyHeader(c, bodylen);
+	addReplyLongLong(c, size);
 }
 
 void lastsaveCommand(redisClient *c) {
