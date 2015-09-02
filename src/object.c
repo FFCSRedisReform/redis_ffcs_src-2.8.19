@@ -562,9 +562,11 @@ int getLongLongFromObject(robj *o, long long *target) {
 int getLongLongFromObjectOrReply(redisClient *c, robj *o, long long *target, const char *msg) {
     long long value;
     if (getLongLongFromObject(o, &value) != REDIS_OK) {
-        if (msg != NULL) {
+    if (msg != NULL) {
+			addFujitsuReplyHeader(c, strlen((char*)msg)+7);
             addReplyError(c,(char*)msg);
         } else {
+			addFujitsuReplyHeader(c, strlen("value is not an integer or out of range")+7);
             addReplyError(c,"value is not an integer or out of range");
         }
         return REDIS_ERR;

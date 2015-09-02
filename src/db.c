@@ -875,6 +875,7 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
 
     /* No key, return zero. */
     if (lookupKeyRead(c->db,key) == NULL) {
+    	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
         addReply(c,shared.czero);
         return;
     }
@@ -897,10 +898,12 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
         decrRefCount(aux);
         signalModifiedKey(c->db,key);
         notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);
+        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
         addReply(c, shared.cone);
         return;
     } else {
         setExpire(c->db,key,when);
+        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
         addReply(c,shared.cone);
         signalModifiedKey(c->db,key);
         notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"expire",key,c->db->id);
@@ -930,6 +933,7 @@ void ttlGenericCommand(redisClient *c, int output_ms) {
 
     /* If the key does not exist at all, return -2 */
     if (lookupKeyRead(c->db,c->argv[1]) == NULL) {
+    	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, -2));
         addReplyLongLong(c,-2);
         return;
     }
@@ -941,8 +945,10 @@ void ttlGenericCommand(redisClient *c, int output_ms) {
         if (ttl < 0) ttl = 0;
     }
     if (ttl == -1) {
+    	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, -1));
         addReplyLongLong(c,-1);
     } else {
+    	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, output_ms ? ttl : ((ttl+500)/1000)));
         addReplyLongLong(c,output_ms ? ttl : ((ttl+500)/1000));
     }
 }

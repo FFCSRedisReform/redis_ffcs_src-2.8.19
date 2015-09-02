@@ -284,8 +284,10 @@ void getrangeCommand(redisClient *c) {
     /* Precondition: end >= 0 && end < strlen, so the only condition where
      * nothing can be returned is: start > end. */
     if (start > end || strlen == 0) {
+		addFujitsuReplyHeader(c, sdslen((shared.emptybulk)->ptr));
         addReply(c,shared.emptybulk);
     } else {
+		addFujitsuReplyHeader(c, getReplyBulkCBufferLen(c, end-start+1));
         addReplyBulkCBuffer(c,(char*)str+start,end-start+1);
     }
 }
@@ -349,6 +351,7 @@ void msetnxCommand(redisClient *c) {
 void incrDecrCommand(redisClient *c, long long incr) {
     long long value, oldvalue;
     robj *o, *new;
+	int bodyLen;
 
     o = lookupKeyWrite(c->db,c->argv[1]);
     if (o != NULL && checkType(c,o,REDIS_STRING)) return;
@@ -369,6 +372,7 @@ void incrDecrCommand(redisClient *c, long long incr) {
     signalModifiedKey(c->db,c->argv[1]);
     notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"incrby",c->argv[1],c->db->id);
     server.dirty++;
+
     addReply(c,shared.colon);
     addReply(c,new);
     addReply(c,shared.crlf);
@@ -460,6 +464,7 @@ void appendCommand(redisClient *c) {
     signalModifiedKey(c->db,c->argv[1]);
     notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"append",c->argv[1],c->db->id);
     server.dirty++;
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, totlen));
     addReplyLongLong(c,totlen);
 }
 
