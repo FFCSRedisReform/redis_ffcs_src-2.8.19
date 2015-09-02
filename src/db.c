@@ -630,7 +630,7 @@ void typeCommand(redisClient *c) {
         default: type = "unknown"; break;
         }
     }
-    addFujitsuReplyHeader(c, strlen(type));
+    addFujitsuReplyHeader(c, strlen(type)+3); // 3:+  \r\n
     addReplyStatus(c,type);
 }
 

@@ -2318,10 +2318,13 @@ void pingCommand(redisClient *c) {
         else
             addReplyBulk(c,c->argv[1]);
     } else {
-        if (c->argc == 1)
+        if (c->argc == 1) {
+            addFujitsuReplyHeader(c, sdslen((shared.pong)->ptr));
             addReply(c,shared.pong);
-        else
+        } else {
+            addFujitsuReplyHeader(c, getReplyBulkLenOrgi(c, c->argv[1]));
             addReplyBulk(c,c->argv[1]);
+        }
     }
 }
 
