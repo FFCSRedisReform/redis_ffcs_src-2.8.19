@@ -278,7 +278,7 @@ void flushallCommand(redisClient *c) {
 }
 
 void delCommand(redisClient *c) {
-    int deleted = 0, j, bodylen;
+    int deleted = 0, j;
 
     for (j = 1; j < c->argc; j++) {
         expireIfNeeded(c->db,c->argv[j]);
@@ -290,21 +290,17 @@ void delCommand(redisClient *c) {
             deleted++;
         }
     }
-    bodylen = getReplyLongLongPrefixLen(c, deleted);
-    addFujitsuReplyHeader(c, bodylen);
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, deleted));
     addReplyLongLong(c,deleted);
 }
 
 void existsCommand(redisClient *c) {
     expireIfNeeded(c->db,c->argv[1]);
-    int bodyLen;
     if (dbExists(c->db,c->argv[1])) {
-    	bodyLen = sdslen((shared.cone)->ptr);
-    	addFujitsuReplyHeader(c, bodyLen);
+        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
         addReply(c, shared.cone);
     } else {
-    	bodyLen = sdslen((shared.czero)->ptr);
-    	addFujitsuReplyHeader(c, bodyLen);
+        addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
         addReply(c, shared.czero);
     }
 }
@@ -609,8 +605,7 @@ void scanCommand(redisClient *c) {
 
 void dbsizeCommand(redisClient *c) {
 	long long size = dictSize(c->db->dict);
-	int bodylen = getReplyLongLongPrefixLen(c, size);
-	addFujitsuReplyHeader(c, bodylen);
+	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, size));
 	addReplyLongLong(c, size);
 }
 
@@ -635,6 +630,7 @@ void typeCommand(redisClient *c) {
         default: type = "unknown"; break;
         }
     }
+    addFujitsuReplyHeader(c, strlen(type));
     addReplyStatus(c,type);
 }
 
