@@ -402,6 +402,7 @@ int parseScanCursorOrReply(redisClient *c, robj *o, unsigned long *cursor) {
     *cursor = strtoul(o->ptr, &eptr, 10);
     if (isspace(((char*)o->ptr)[0]) || eptr[0] != '\0' || errno == ERANGE)
     {
+    	addFujitsuReplyHeader(c, strlen("invalid cursor")+7);
         addReplyError(c, "invalid cursor");
         return REDIS_ERR;
     }
@@ -447,6 +448,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
             }
 
             if (count < 1) {
+            	addFujitsuReplyHeader(c, sdslen((shared.syntaxerr)->ptr));
                 addReply(c,shared.syntaxerr);
                 goto cleanup;
             }
@@ -462,6 +464,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
 
             i += 2;
         } else {
+        	addFujitsuReplyHeader(c, sdslen((shared.syntaxerr)->ptr));
             addReply(c,shared.syntaxerr);
             goto cleanup;
         }
@@ -580,6 +583,21 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
     }
 
     /* Step 4: Reply to the client. */
+    //fujitsu start
+    int bodylen = 0;
+    bodylen += getReplyLongLongPrefixLen(c, 2);
+    bodylen += getReplyBulkLongLongLen(c, cursor);
+
+    bodylen += getReplyLongLongPrefixLen(c, listLength(keys));
+    node = listFirst(keys);
+    while (node) {
+    	robj *kobj = listNodeValue(node);
+    	bodylen += getReplyBulkLenOrgi(c, kobj);
+    	node = listNextNode(node);
+    }
+    addFujitsuReplyHeader(c, bodylen);
+    //fujitsu end
+
     addReplyMultiBulkLen(c, 2);
     addReplyBulkLongLong(c,cursor);
 
