@@ -752,11 +752,15 @@ void hdelCommand(redisClient *c) {
 }
 
 void hlenCommand(redisClient *c) {
-    robj *o;
-    if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.czero)) == NULL ||
-        checkType(c,o,REDIS_HASH)) return;
+	robj *o;
+	long long hashTypeLen;
 
-    addReplyLongLong(c,hashTypeLength(o));
+	if ((o = lookupKeyReadOrReply(c, c->argv[1], shared.czero)) == NULL
+			|| checkType(c, o, REDIS_HASH))
+		return;
+	hashTypeLen = hashTypeLength(o);
+	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, hashTypeLen));
+	addReplyLongLong(c, hashTypeLen);
 }
 
 int getHashIteratorCursorToReply(redisClient *c, hashTypeIterator *hi, int what) {
