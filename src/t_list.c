@@ -431,18 +431,21 @@ void lindexCommand(redisClient *c) {
 			} else {
 				value = createStringObjectFromLongLong(vlong);
 			}
-
+			addFujitsuReplyHeader(c, getReplyBulkLenOrgi(c, value));
 			addReplyBulk(c, value);
 			decrRefCount(value);
 		} else {
+			addFujitsuReplyHeader(c, sdslen((shared.nullbulk)->ptr));
 			addReply(c, shared.nullbulk);
 		}
 	} else if (o->encoding == REDIS_ENCODING_LINKEDLIST) {
 		listNode *ln = listIndex(o->ptr, index);
 		if (ln != NULL) {
 			value = listNodeValue(ln);
+			addFujitsuReplyHeader(c, getReplyBulkLenOrgi(c, value));
 			addReplyBulk(c, value);
 		} else {
+			addFujitsuReplyHeader(c, sdslen((shared.nullbulk)->ptr));
 			addReply(c, shared.nullbulk);
 		}
 	} else {
