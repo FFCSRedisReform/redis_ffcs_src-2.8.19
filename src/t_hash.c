@@ -603,11 +603,51 @@ void hincrbyfloatCommand(redisClient *c) {
     decrRefCount(new);
 }
 
+int getHashFieldToReply(redisClient *c, robj *o, robj *field) {
+    int ret, len = 0;
+
+    if (o == NULL) {
+    	len += sdslen((shared.nullbulk)->ptr);
+        return len;
+    }
+
+    if (o->encoding == REDIS_ENCODING_ZIPLIST) {
+        unsigned char *vstr = NULL;
+        unsigned int vlen = UINT_MAX;
+        long long vll = LLONG_MAX;
+
+        ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
+        if (ret < 0) {
+        	len += sdslen((shared.nullbulk)->ptr);
+        } else {
+            if (vstr) {
+				len += getReplyBulkCBufferLen(c, vlen);
+            } else {
+				len += getReplyBulkLongLongLen(c, vll);
+            }
+        }
+
+    } else if (o->encoding == REDIS_ENCODING_HT) {
+        robj *value;
+
+        ret = hashTypeGetFromHashTable(o, field, &value);
+        if (ret < 0) {
+			len += sdslen((shared.nullbulk)->ptr);
+        } else {
+			len += getReplyBulkLenOrgi(c, value);
+        }
+
+    } else {
+        redisPanic("Unknown hash encoding");
+    }
+
+    return len;
+}
+
 static void addHashFieldToReply(redisClient *c, robj *o, robj *field) {
     int ret;
 
     if (o == NULL) {
-		addFujitsuReplyHeader(c, sdslen((shared.nullbulk)->ptr));
         addReply(c, shared.nullbulk);
         return;
     }
@@ -619,14 +659,11 @@ static void addHashFieldToReply(redisClient *c, robj *o, robj *field) {
 
         ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
         if (ret < 0) {
-			addFujitsuReplyHeader(c, sdslen((shared.nullbulk)->ptr));
             addReply(c, shared.nullbulk);
         } else {
             if (vstr) {
-				addFujitsuReplyHeader(c, getReplyBulkCBufferLen(c, vlen));
                 addReplyBulkCBuffer(c, vstr, vlen);
             } else {
-				addFujitsuReplyHeader(c, getReplyBulkLongLongLen(c, vll));
                 addReplyBulkLongLong(c, vll);
             }
         }
@@ -636,10 +673,8 @@ static void addHashFieldToReply(redisClient *c, robj *o, robj *field) {
 
         ret = hashTypeGetFromHashTable(o, field, &value);
         if (ret < 0) {
-			addFujitsuReplyHeader(c, sdslen((shared.nullbulk)->ptr));		
             addReply(c, shared.nullbulk);
         } else {
-			addFujitsuReplyHeader(c, getReplyBulkLenOrgi(c, value));
             addReplyBulk(c, value);
         }
 
@@ -654,12 +689,13 @@ void hgetCommand(redisClient *c) {
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL ||
         checkType(c,o,REDIS_HASH)) return;
 
+    addFujitsuReplyHeader(c, getHashFieldToReply(c, o, c->argv[2]));
     addHashFieldToReply(c, o, c->argv[2]);
 }
 
 void hmgetCommand(redisClient *c) {
     robj *o;
-    int i;
+    int i, bodylen;
 
     /* Don't abort when the key cannot be found. Non-existing keys are empty
      * hashes, where HMGET should respond with a series of null bulks. */
@@ -669,6 +705,14 @@ void hmgetCommand(redisClient *c) {
         addReply(c, shared.wrongtypeerr);
         return;
     }
+
+    //fujitsu begin
+    bodylen = getReplyLongLongPrefixLen(c, c->argc-2);
+    for (i = 2; i < c->argc; i++) {
+        bodylen += getHashFieldToReply(c, o, c->argv[i]);
+    }
+    addFujitsuReplyHeader(c, bodylen);
+    //fujitsu end
 
     addReplyMultiBulkLen(c, c->argc-2);
     for (i = 2; i < c->argc; i++) {
