@@ -403,6 +403,7 @@ robj *hashTypeLookupWriteOrCreate(redisClient *c, robj *key) {
         dbAdd(c->db,key,o);
     } else {
         if (o->type != REDIS_HASH) {
+        	addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
             addReply(c,shared.wrongtypeerr);
             return NULL;
         }
@@ -488,10 +489,12 @@ void hsetnxCommand(redisClient *c) {
     hashTypeTryConversion(o,c->argv,2,3);
 
     if (hashTypeExists(o, c->argv[2])) {
+    	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
         addReply(c, shared.czero);
     } else {
         hashTypeTryObjectEncoding(o,&c->argv[2], &c->argv[3]);
         hashTypeSet(o,c->argv[2],c->argv[3]);
+        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
         addReply(c, shared.cone);
         signalModifiedKey(c->db,c->argv[1]);
         notifyKeyspaceEvent(REDIS_NOTIFY_HASH,"hset",c->argv[1],c->db->id);
@@ -504,6 +507,7 @@ void hmsetCommand(redisClient *c) {
     robj *o;
 
     if ((c->argc % 2) == 1) {
+    	addFujitsuReplyHeader(c, strlen("wrong number of arguments for HMSET")+7);
         addReplyError(c,"wrong number of arguments for HMSET");
         return;
     }
@@ -514,6 +518,7 @@ void hmsetCommand(redisClient *c) {
         hashTypeTryObjectEncoding(o,&c->argv[i], &c->argv[i+1]);
         hashTypeSet(o,c->argv[i],c->argv[i+1]);
     }
+    addFujitsuReplyHeader(c, sdslen((shared.ok)->ptr));
     addReply(c, shared.ok);
     signalModifiedKey(c->db,c->argv[1]);
     notifyKeyspaceEvent(REDIS_NOTIFY_HASH,"hset",c->argv[1],c->db->id);
@@ -523,6 +528,7 @@ void hmsetCommand(redisClient *c) {
 void hincrbyCommand(redisClient *c) {
     long long value, incr, oldvalue;
     robj *o, *current, *new;
+    int bodyLen;
 
     if (getLongLongFromObjectOrReply(c,c->argv[3],&incr,NULL) != REDIS_OK) return;
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
@@ -540,6 +546,8 @@ void hincrbyCommand(redisClient *c) {
     oldvalue = value;
     if ((incr < 0 && oldvalue < 0 && incr < (LLONG_MIN-oldvalue)) ||
         (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) {
+
+    	addFujitsuReplyHeader(c, strlen("increment or decrement would overflow")+7);
         addReplyError(c,"increment or decrement would overflow");
         return;
     }
@@ -548,11 +556,16 @@ void hincrbyCommand(redisClient *c) {
     hashTypeTryObjectEncoding(o,&c->argv[2],NULL);
     hashTypeSet(o,c->argv[2],new);
     decrRefCount(new);
+
+    bodyLen = getReplyLongLongPrefixLen(c,value);
+	addFujitsuReplyHeader(c,bodyLen);
+
     addReplyLongLong(c,value);
     signalModifiedKey(c->db,c->argv[1]);
     notifyKeyspaceEvent(REDIS_NOTIFY_HASH,"hincrby",c->argv[1],c->db->id);
     server.dirty++;
 }
+
 
 void hincrbyfloatCommand(redisClient *c) {
     double long value, incr;
@@ -652,6 +665,7 @@ void hmgetCommand(redisClient *c) {
      * hashes, where HMGET should respond with a series of null bulks. */
     o = lookupKeyRead(c->db, c->argv[1]);
     if (o != NULL && o->type != REDIS_HASH) {
+    	addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
         addReply(c, shared.wrongtypeerr);
         return;
     }
@@ -817,7 +831,13 @@ void hexistsCommand(redisClient *c) {
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.czero)) == NULL ||
         checkType(c,o,REDIS_HASH)) return;
 
-    addReply(c, hashTypeExists(o,c->argv[2]) ? shared.cone : shared.czero);
+    if(hashTypeExists(o,c->argv[2])){
+    	addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
+    	addReply(c, shared.cone);
+    }else{
+        addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
+        addReply(c, shared.czero);
+    }
 }
 
 void hscanCommand(redisClient *c) {

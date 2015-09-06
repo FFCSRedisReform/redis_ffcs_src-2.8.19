@@ -279,11 +279,12 @@ robj *resetRefCount(robj *obj) {
 }
 
 int checkType(redisClient *c, robj *o, int type) {
-    if (o->type != type) {
-        addReply(c,shared.wrongtypeerr);
-        return 1;
-    }
-    return 0;
+	if (o->type != type) {
+		addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
+		addReply(c, shared.wrongtypeerr);
+		return 1;
+	}
+	return 0;
 }
 
 int isObjectRepresentableAsLongLong(robj *o, long long *llval) {
@@ -575,20 +576,24 @@ int getLongLongFromObjectOrReply(redisClient *c, robj *o, long long *target, con
     return REDIS_OK;
 }
 
-int getLongFromObjectOrReply(redisClient *c, robj *o, long *target, const char *msg) {
-    long long value;
+int getLongFromObjectOrReply(redisClient *c, robj *o, long *target,
+		const char *msg) {
+	long long value;
 
-    if (getLongLongFromObjectOrReply(c, o, &value, msg) != REDIS_OK) return REDIS_ERR;
-    if (value < LONG_MIN || value > LONG_MAX) {
-        if (msg != NULL) {
-            addReplyError(c,(char*)msg);
-        } else {
-            addReplyError(c,"value is out of range");
-        }
-        return REDIS_ERR;
-    }
-    *target = value;
-    return REDIS_OK;
+	if (getLongLongFromObjectOrReply(c, o, &value, msg) != REDIS_OK)
+		return REDIS_ERR;
+	if (value < LONG_MIN || value > LONG_MAX) {
+		if (msg != NULL) {
+			addFujitsuReplyHeader(c, strlen((char*) msg) + 7);
+			addReplyError(c, (char*) msg);
+		} else {
+			addFujitsuReplyHeader(c,strlen("value is out of range") + 7);
+			addReplyError(c, "value is out of range");
+		}
+		return REDIS_ERR;
+	}
+	*target = value;
+	return REDIS_OK;
 }
 
 char *strEncoding(int encoding) {
