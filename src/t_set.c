@@ -299,6 +299,7 @@ void sremCommand(redisClient *c) {
                                 c->db->id);
         server.dirty += deleted;
     }
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, deleted));
     addReplyLongLong(c,deleted);
 }
 
