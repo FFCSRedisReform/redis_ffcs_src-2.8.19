@@ -767,6 +767,7 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
                 dstkey,c->db->id);
         } else {
             decrRefCount(dstset);
+            addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
             addReply(c,shared.czero);
             if (deleted)
                 notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",
@@ -937,7 +938,6 @@ void sunionDiffGenericCommand(redisClient *c, robj **setkeys, int setnum, robj *
                 dstkey,c->db->id);
         } else {
             decrRefCount(dstset);
-            addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
             addReply(c,shared.czero);
             if (deleted)
                 notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",
