@@ -37,6 +37,7 @@
 
 static int checkStringLength(redisClient *c, long long size) {
     if (size > 512*1024*1024) {
+    	addFujitsuReplyHeader(c, strlen("string exceeds maximum allowed size (512MB)")+7);
         addReplyError(c,"string exceeds maximum allowed size (512MB)");
         return REDIS_ERR;
     }
@@ -202,6 +203,7 @@ void setrangeCommand(redisClient *c) {
         return;
 
     if (offset < 0) {
+    	addFujitsuReplyHeader(c, strlen("offset is out of range"+7));
         addReplyError(c,"offset is out of range");
         return;
     }
@@ -210,6 +212,7 @@ void setrangeCommand(redisClient *c) {
     if (o == NULL) {
         /* Return 0 when setting nothing on a non-existing string */
         if (sdslen(value) == 0) {
+        	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
             addReply(c,shared.czero);
             return;
         }
@@ -230,6 +233,7 @@ void setrangeCommand(redisClient *c) {
         /* Return existing string length when setting nothing */
         olen = stringObjectLen(o);
         if (sdslen(value) == 0) {
+        	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, olen));
             addReplyLongLong(c,olen);
             return;
         }
@@ -250,6 +254,7 @@ void setrangeCommand(redisClient *c) {
             "setrange",c->argv[1],c->db->id);
         server.dirty++;
     }
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, sdslen(o->ptr)));
     addReplyLongLong(c,sdslen(o->ptr));
 }
 
