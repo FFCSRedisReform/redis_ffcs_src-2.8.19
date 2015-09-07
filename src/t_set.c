@@ -257,6 +257,7 @@ void saddCommand(redisClient *c) {
         dbAdd(c->db,c->argv[1],set);
     } else {
         if (set->type != REDIS_SET) {
+        	addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
             addReply(c,shared.wrongtypeerr);
             return;
         }
@@ -271,6 +272,7 @@ void saddCommand(redisClient *c) {
         notifyKeyspaceEvent(REDIS_NOTIFY_SET,"sadd",c->argv[1],c->db->id);
     }
     server.dirty += added;
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c,added));
     addReplyLongLong(c,added);
 }
 
@@ -363,10 +365,13 @@ void sismemberCommand(redisClient *c) {
         checkType(c,set,REDIS_SET)) return;
 
     c->argv[2] = tryObjectEncoding(c->argv[2]);
-    if (setTypeIsMember(set,c->argv[2]))
+    if (setTypeIsMember(set,c->argv[2])) {
+    	addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
         addReply(c,shared.cone);
-    else
+    } else {
+    	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
         addReply(c,shared.czero);
+    }
 }
 
 void scardCommand(redisClient *c) {
@@ -375,6 +380,7 @@ void scardCommand(redisClient *c) {
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.czero)) == NULL ||
         checkType(c,o,REDIS_SET)) return;
 
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, setTypeSize(o)));
     addReplyLongLong(c,setTypeSize(o));
 }
 
@@ -598,7 +604,6 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
     setTypeIterator *si;
     robj *eleobj, *dstset = NULL;
     int64_t intobj;
-    void *replylen = NULL;
     unsigned long j, cardinality = 0;
     int encoding;
 
@@ -613,8 +618,10 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
                     signalModifiedKey(c->db,dstkey);
                     server.dirty++;
                 }
+                addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
                 addReply(c,shared.czero);
             } else {
+            	addFujitsuReplyHeader(c, sdslen((shared.emptymultibulk)->ptr));
                 addReply(c,shared.emptymultibulk);
             }
             return;
@@ -635,7 +642,52 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
      * to the output list and save the pointer to later modify it with the
      * right length */
     if (!dstkey) {
-        replylen = addDeferredMultiBulkLength(c);
+
+    	//fujitsu start
+    	int len = 0;
+        si = setTypeInitIterator(sets[0]);
+        while((encoding = setTypeNext(si,&eleobj,&intobj)) != -1) {
+            for (j = 1; j < setnum; j++) {
+                if (sets[j] == sets[0]) continue;
+                if (encoding == REDIS_ENCODING_INTSET) {
+                    if (sets[j]->encoding == REDIS_ENCODING_INTSET &&
+                        !intsetFind((intset*)sets[j]->ptr,intobj))
+                    {
+                        break;
+                    } else if (sets[j]->encoding == REDIS_ENCODING_HT) {
+                        eleobj = createStringObjectFromLongLong(intobj);
+                        if (!setTypeIsMember(sets[j],eleobj)) {
+                            decrRefCount(eleobj);
+                            break;
+                        }
+                        decrRefCount(eleobj);
+                    }
+                } else if (encoding == REDIS_ENCODING_HT) {
+                    if (eleobj->encoding == REDIS_ENCODING_INT &&
+                        sets[j]->encoding == REDIS_ENCODING_INTSET &&
+                        !intsetFind((intset*)sets[j]->ptr,(long)eleobj->ptr))
+                    {
+                        break;
+                    } else if (!setTypeIsMember(sets[j],eleobj)) {
+                        break;
+                    }
+                }
+            }
+
+            if (j == setnum) {
+                if (encoding == REDIS_ENCODING_HT)
+                	len += getReplyBulkLenOrgi(c, eleobj);
+                else
+                    len += getReplyBulkLongLongLen(c,intobj);
+                cardinality++;
+            }
+        }
+        len += getReplyLongLongPrefixLen(c, cardinality);
+        setTypeReleaseIterator(si);
+        addFujitsuReplyHeader(c, len);
+        //fujitsu end
+
+        addReplyMultiBulkLen(c, cardinality);
     } else {
         /* If we have a target key where to store the resulting set
          * create this key with an empty set inside */
@@ -690,7 +742,6 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
                     addReplyBulk(c,eleobj);
                 else
                     addReplyBulkLongLong(c,intobj);
-                cardinality++;
             } else {
                 if (encoding == REDIS_ENCODING_INTSET) {
                     eleobj = createStringObjectFromLongLong(intobj);
@@ -710,6 +761,7 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
         int deleted = dbDelete(c->db,dstkey);
         if (setTypeSize(dstset) > 0) {
             dbAdd(c->db,dstkey,dstset);
+            addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, setTypeSize(dstset)));
             addReplyLongLong(c,setTypeSize(dstset));
             notifyKeyspaceEvent(REDIS_NOTIFY_SET,"sinterstore",
                 dstkey,c->db->id);
@@ -722,8 +774,6 @@ void sinterGenericCommand(redisClient *c, robj **setkeys, unsigned long setnum, 
         }
         signalModifiedKey(c->db,dstkey);
         server.dirty++;
-    } else {
-        setDeferredMultiBulkLength(c,replylen,cardinality);
     }
     zfree(sets);
 }
@@ -887,6 +937,7 @@ void sunionDiffGenericCommand(redisClient *c, robj **setkeys, int setnum, robj *
                 dstkey,c->db->id);
         } else {
             decrRefCount(dstset);
+            addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
             addReply(c,shared.czero);
             if (deleted)
                 notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",

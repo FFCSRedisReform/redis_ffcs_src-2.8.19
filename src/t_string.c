@@ -203,7 +203,7 @@ void setrangeCommand(redisClient *c) {
         return;
 
     if (offset < 0) {
-    	addFujitsuReplyHeader(c, strlen("offset is out of range"+7));
+    	addFujitsuReplyHeader(c, strlen("offset is out of range")+7);
         addReplyError(c,"offset is out of range");
         return;
     }
