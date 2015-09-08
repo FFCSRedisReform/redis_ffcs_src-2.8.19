@@ -434,17 +434,6 @@ void setDeferredMultiBulkLength(redisClient *c, void *node, long length) {
     asyncCloseClientOnOutputBufferLimitReached(c);
 }
 
-int getReplyDoubleLen(redisClient *c, double d) {
-    char dbuf[128], sbuf[128];
-    int dlen, slen;
-    if (isinf(d)) {
-        return (d > 0 ? strlen("inf") : strlen("-inf"));
-    } else {
-        dlen = snprintf(dbuf,sizeof(dbuf),"%.17g",d);
-        return slen = snprintf(sbuf,sizeof(sbuf),"$%d\r\n%s\r\n",dlen,dbuf);
-    }
-}
-
 /* Add a double as a bulk reply */
 void addReplyDouble(redisClient *c, double d) {
     char dbuf[128], sbuf[128];

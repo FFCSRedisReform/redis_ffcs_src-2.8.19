@@ -2288,7 +2288,6 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
     long offset = 0, limit = -1;
     int withscores = 0;
     unsigned long rangelen = 0;
-    void *replylen = NULL;
     int minidx, maxidx;
 
     /* Parse the range arguments. */
@@ -2301,6 +2300,7 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
     }
 
     if (zslParseRange(c->argv[minidx],c->argv[maxidx],&range) != REDIS_OK) {
+    	addFujitsuReplyHeader(c, strlen("min or max is not a float")+7);
         addReplyError(c,"min or max is not a float");
         return;
     }
@@ -2320,6 +2320,7 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
                     (getLongFromObjectOrReply(c, c->argv[pos+2], &limit, NULL) != REDIS_OK)) return;
                 pos += 3; remaining -= 3;
             } else {
+            	addFujitsuReplyHeader(c, sdslen((shared.syntaxerr)->ptr));
                 addReply(c,shared.syntaxerr);
                 return;
             }
@@ -2347,6 +2348,7 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
 
         /* No "first" element in the specified interval. */
         if (eptr == NULL) {
+        	addFujitsuReplyHeader(c, sdslen((shared.emptymultibulk)->ptr));
             addReply(c, shared.emptymultibulk);
             return;
         }
@@ -2355,10 +2357,57 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
         redisAssertWithInfo(c,zobj,eptr != NULL);
         sptr = ziplistNext(zl,eptr);
 
-        /* We don't know in advance how many matching elements there are in the
-         * list, so we push this object that will represent the multi-bulk
-         * length in the output buffer, and will "fix" it later */
-        replylen = addDeferredMultiBulkLength(c);
+        //fujitsu begin
+        int orgiOffset = offset, orgiLimit = limit, len = 0;
+
+        while (eptr && offset--) {
+            if (reverse) {
+                zzlPrev(zl,&eptr,&sptr);
+            } else {
+                zzlNext(zl,&eptr,&sptr);
+            }
+        }
+        while (eptr && limit--) {
+            score = zzlGetScore(sptr);
+            if (reverse) {
+                if (!zslValueGteMin(score,&range)) break;
+            } else {
+                if (!zslValueLteMax(score,&range)) break;
+            }
+            redisAssertWithInfo(c,zobj,ziplistGet(eptr,&vstr,&vlen,&vlong));
+            rangelen++;
+            if (vstr == NULL) {
+            	len += getReplyBulkLongLongLen(c,vlong);
+            } else {
+            	len += getReplyBulkCBufferLen(c,vlen);
+            }
+            if (withscores) {
+            	len += getReplyDoubleLen(c,score);
+            }
+            if (reverse) {
+                zzlPrev(zl,&eptr,&sptr);
+            } else {
+                zzlNext(zl,&eptr,&sptr);
+            }
+        }
+
+        offset = orgiOffset;
+        limit = orgiLimit;
+        if (reverse) {
+            eptr = zzlLastInRange(zl,&range);
+        } else {
+            eptr = zzlFirstInRange(zl,&range);
+        }
+        redisAssertWithInfo(c,zobj,eptr != NULL);
+        sptr = ziplistNext(zl,eptr);
+
+        len += getReplyLongLongPrefixLen(c, rangelen);
+        addFujitsuReplyHeader(c, len);
+        if (withscores) {
+            rangelen *= 2;
+        }
+        addReplyMultiBulkLen(c, rangelen);
+        //fujitsu end
 
         /* If there is an offset, just traverse the number of elements without
          * checking the score because that is done in the next loop. */
@@ -2415,14 +2464,58 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
 
         /* No "first" element in the specified interval. */
         if (ln == NULL) {
+        	addFujitsuReplyHeader(c, sdslen((shared.emptymultibulk)->ptr));
             addReply(c, shared.emptymultibulk);
             return;
         }
 
-        /* We don't know in advance how many matching elements there are in the
-         * list, so we push this object that will represent the multi-bulk
-         * length in the output buffer, and will "fix" it later */
-        replylen = addDeferredMultiBulkLength(c);
+        //fujitsu start
+        int orgiOffset = offset, orgiLimit = limit, len = 0;
+
+        while (ln && offset--) {
+            if (reverse) {
+                ln = ln->backward;
+            } else {
+                ln = ln->level[0].forward;
+            }
+        }
+
+        while (ln && limit--) {
+            if (reverse) {
+                if (!zslValueGteMin(ln->score,&range)) break;
+            } else {
+                if (!zslValueLteMax(ln->score,&range)) break;
+            }
+
+            rangelen++;
+            len += getReplyBulkLenOrgi(c, ln->obj);
+
+            if (withscores) {
+            	len += getReplyDoubleLen(c, ln->score);
+            }
+
+            if (reverse) {
+                ln = ln->backward;
+            } else {
+                ln = ln->level[0].forward;
+            }
+        }
+
+        offset = orgiOffset;
+        limit = orgiLimit;
+        if (reverse) {
+            ln = zslLastInRange(zsl,&range);
+        } else {
+            ln = zslFirstInRange(zsl,&range);
+        }
+
+        len += getReplyLongLongPrefixLen(c, rangelen);
+        addFujitsuReplyHeader(c, len);
+        if (withscores) {
+            rangelen *= 2;
+        }
+        addReplyMultiBulkLen(c, rangelen);
+        //fujitsu end
 
         /* If there is an offset, just traverse the number of elements without
          * checking the score because that is done in the next loop. */
@@ -2459,12 +2552,6 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
     } else {
         redisPanic("Unknown sorted set encoding");
     }
-
-    if (withscores) {
-        rangelen *= 2;
-    }
-
-    setDeferredMultiBulkLength(c, replylen, rangelen);
 }
 
 void zrangebyscoreCommand(redisClient *c) {
