@@ -453,7 +453,7 @@ int getReplyDoubleLen(redisClient *c, double d) {
     char dbuf[128], sbuf[128];
     int dlen, slen;
     if (isinf(d)) {
-        return (d > 0 ? strlen("inf") : strlen("-inf"));
+        return (d > 0 ? strlen("inf")+6 : strlen("-inf")+6);
     } else {
         dlen = snprintf(dbuf,sizeof(dbuf),"%.17g",d);
         return slen = snprintf(sbuf,sizeof(sbuf),"$%d\r\n%s\r\n",dlen,dbuf);
