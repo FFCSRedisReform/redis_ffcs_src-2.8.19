@@ -2432,7 +2432,6 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
             /* We know the element exists, so ziplistGet should always succeed */
             redisAssertWithInfo(c,zobj,ziplistGet(eptr,&vstr,&vlen,&vlong));
 
-            rangelen++;
             if (vstr == NULL) {
                 addReplyBulkLongLong(c,vlong);
             } else {
@@ -2487,7 +2486,6 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
                 if (!zslValueLteMax(ln->score,&range)) break;
             }
 
-            rangelen++;
             len += getReplyBulkLenOrgi(c, ln->obj);
 
             if (withscores) {
