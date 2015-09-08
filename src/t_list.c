@@ -406,6 +406,7 @@ void linsertCommand(redisClient *c) {
     } else if (strcasecmp(c->argv[2]->ptr,"before") == 0) {
         pushxGenericCommand(c,c->argv[3],c->argv[4],REDIS_HEAD);
     } else {
+    	addFujitsuReplyHeader(c, sdslen((shared.syntaxerr)->ptr));
         addReply(c,shared.syntaxerr);
     }
 }

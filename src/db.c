@@ -984,12 +984,15 @@ void persistCommand(redisClient *c) {
 
     de = dictFind(c->db->dict,c->argv[1]->ptr);
     if (de == NULL) {
+    	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
         addReply(c,shared.czero);
     } else {
         if (removeExpire(c->db,c->argv[1])) {
+        	addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
             addReply(c,shared.cone);
             server.dirty++;
         } else {
+        	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
             addReply(c,shared.czero);
         }
     }
