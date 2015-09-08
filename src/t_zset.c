@@ -1182,6 +1182,7 @@ void zaddGenericCommand(redisClient *c, int incr) {
     int added = 0, updated = 0;
 
     if (c->argc % 2) {
+    	addFujitsuReplyHeader(c,sdslen((shared.syntaxerr)->ptr));
         addReply(c,shared.syntaxerr);
         return;
     }
@@ -1208,6 +1209,7 @@ void zaddGenericCommand(redisClient *c, int incr) {
         dbAdd(c->db,key,zobj);
     } else {
         if (zobj->type != REDIS_ZSET) {
+        	addFujitsuReplyHeader(c,sdslen((shared.wrongtypeerr)->ptr));
             addReply(c,shared.wrongtypeerr);
             goto cleanup;
         }
@@ -1225,6 +1227,7 @@ void zaddGenericCommand(redisClient *c, int incr) {
                 if (incr) {
                     score += curscore;
                     if (isnan(score)) {
+                    	addFujitsuReplyHeader(c,strlen(nanerr)+7);
                         addReplyError(c,nanerr);
                         goto cleanup;
                     }
@@ -1262,6 +1265,7 @@ void zaddGenericCommand(redisClient *c, int incr) {
                 if (incr) {
                     score += curscore;
                     if (isnan(score)) {
+                    	addFujitsuReplyHeader(c,strlen(nanerr)+7);
                         addReplyError(c,nanerr);
                         /* Don't need to check if the sorted set is empty
                          * because we know it has at least one element. */
@@ -1293,9 +1297,13 @@ void zaddGenericCommand(redisClient *c, int incr) {
         }
     }
     if (incr) /* ZINCRBY */
+    	{addFujitsuReplyHeader(c,getReplyDoubleLen(c,score));
         addReplyDouble(c,score);
+    	}
     else /* ZADD */
+    	{addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, added));
         addReplyLongLong(c,added);
+    	}
 
 cleanup:
     zfree(scores);
@@ -1371,6 +1379,7 @@ void zremCommand(redisClient *c) {
         signalModifiedKey(c->db,key);
         server.dirty += deleted;
     }
+    addFujitsuReplyHeader(c,getReplyLongLongPrefixLen(c,deleted));
     addReplyLongLong(c,deleted);
 }
 
@@ -1394,11 +1403,13 @@ void zremrangeGenericCommand(redisClient *c, int rangetype) {
             return;
     } else if (rangetype == ZRANGE_SCORE) {
         if (zslParseRange(c->argv[2],c->argv[3],&range) != REDIS_OK) {
+        	addFujitsuReplyHeader(c, strlen("min or max is not a float")+7);
             addReplyError(c,"min or max is not a float");
             return;
         }
     } else if (rangetype == ZRANGE_LEX) {
         if (zslParseLexRange(c->argv[2],c->argv[3],&lexrange) != REDIS_OK) {
+        	addFujitsuReplyHeader(c, strlen("min or max not valid string range item")+7);
             addReplyError(c,"min or max not valid string range item");
             return;
         }
@@ -1418,6 +1429,7 @@ void zremrangeGenericCommand(redisClient *c, int rangetype) {
         /* Invariant: start >= 0, so this test will be true when end < 0.
          * The range is empty when start > end or start >= length. */
         if (start > end || start >= llen) {
+    		addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
             addReply(c,shared.czero);
             goto cleanup;
         }
@@ -1472,6 +1484,7 @@ void zremrangeGenericCommand(redisClient *c, int rangetype) {
             notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);
     }
     server.dirty += deleted;
+	addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, deleted));
     addReplyLongLong(c,deleted);
 
 cleanup:
@@ -2095,7 +2108,8 @@ void zrangeGenericCommand(redisClient *c, int reverse) {
     long start;
     long end;
     int llen;
-    int rangelen;
+    int rangelen,frangelen;
+    int bodylen;
 
     if ((getLongFromObjectOrReply(c, c->argv[2], &start, NULL) != REDIS_OK) ||
         (getLongFromObjectOrReply(c, c->argv[3], &end, NULL) != REDIS_OK)) return;
@@ -2103,6 +2117,7 @@ void zrangeGenericCommand(redisClient *c, int reverse) {
     if (c->argc == 5 && !strcasecmp(c->argv[4]->ptr,"withscores")) {
         withscores = 1;
     } else if (c->argc >= 5) {
+    	addFujitsuReplyHeader(c, sdslen((shared.syntaxerr)->ptr));
         addReply(c,shared.syntaxerr);
         return;
     }
@@ -2119,6 +2134,7 @@ void zrangeGenericCommand(redisClient *c, int reverse) {
     /* Invariant: start >= 0, so this test will be true when end < 0.
      * The range is empty when start > end or start >= length. */
     if (start > end || start >= llen) {
+    	addFujitsuReplyHeader(c, sdslen((shared.emptymultibulk)->ptr));
         addReply(c,shared.emptymultibulk);
         return;
     }
@@ -2126,6 +2142,72 @@ void zrangeGenericCommand(redisClient *c, int reverse) {
     rangelen = (end-start)+1;
 
     /* Return the result in form of a multi-bulk reply */
+    //==============fujitsu begin
+    frangelen = rangelen;
+    bodylen = getReplyLongLongPrefixLen(c, withscores ? (frangelen*2) : frangelen);
+
+    if (zobj->encoding == REDIS_ENCODING_ZIPLIST) {
+        unsigned char *zl = zobj->ptr;
+        unsigned char *eptr, *sptr;
+        unsigned char *vstr;
+        unsigned int vlen;
+        long long vlong;
+
+        if (reverse)
+            eptr = ziplistIndex(zl,-2-(2*start));
+        else
+            eptr = ziplistIndex(zl,2*start);
+
+        redisAssertWithInfo(c,zobj,eptr != NULL);
+        sptr = ziplistNext(zl,eptr);
+
+        while (frangelen--) {
+            redisAssertWithInfo(c,zobj,eptr != NULL && sptr != NULL);
+            redisAssertWithInfo(c,zobj,ziplistGet(eptr,&vstr,&vlen,&vlong));
+            if (vstr == NULL)
+    			bodylen += getReplyBulkLongLongLen(c, vlong);
+            else
+            	bodylen += getReplyBulkCBufferLen(c, vlen);
+
+            if (withscores)
+            	bodylen += getReplyDoubleLen(zzlGetScore(sptr));
+
+            if (reverse)
+                zzlPrev(zl,&eptr,&sptr);
+            else
+                zzlNext(zl,&eptr,&sptr);
+        }
+
+    } else if (zobj->encoding == REDIS_ENCODING_SKIPLIST) {
+        zset *zs = zobj->ptr;
+        zskiplist *zsl = zs->zsl;
+        zskiplistNode *ln;
+        robj *ele;
+
+        /* Check if starting point is trivial, before doing log(N) lookup. */
+        if (reverse) {
+            ln = zsl->tail;
+            if (start > 0)
+                ln = zslGetElementByRank(zsl,llen-start);
+        } else {
+            ln = zsl->header->level[0].forward;
+            if (start > 0)
+                ln = zslGetElementByRank(zsl,start+1);
+        }
+
+        while(frangelen--) {
+            redisAssertWithInfo(c,zobj,ln != NULL);
+            ele = ln->obj;
+            bodylen += getReplyBulkLenOrgi(c,ele);
+            if (withscores)
+            	bodylen += getReplyDoubleLen(c,ln->score);
+            ln = reverse ? ln->backward : ln->level[0].forward;
+        }
+    } else {
+        redisPanic("Unknown sorted set encoding");
+    }
+    addFujitsuReplyHeader(c, bodylen);
+    //==============fujitsu end
     addReplyMultiBulkLen(c, withscores ? (rangelen*2) : rangelen);
 
     if (zobj->encoding == REDIS_ENCODING_ZIPLIST) {
@@ -2401,6 +2483,7 @@ void zcountCommand(redisClient *c) {
 
     /* Parse the range arguments */
     if (zslParseRange(c->argv[2],c->argv[3],&range) != REDIS_OK) {
+    	addFujitsuReplyHeader(c,strlen("min or max is not a float"));
         addReplyError(c,"min or max is not a float");
         return;
     }
@@ -2419,6 +2502,7 @@ void zcountCommand(redisClient *c) {
 
         /* No "first" element */
         if (eptr == NULL) {
+        	addFujitsuReplyHeader(c,sdslen((shared.czero)->ptr));
             addReply(c, shared.czero);
             return;
         }
@@ -2466,7 +2550,7 @@ void zcountCommand(redisClient *c) {
     } else {
         redisPanic("Unknown sorted set encoding");
     }
-
+    addFujitsuReplyHeader(c,getReplyLongLongPrefixLen(c,count));
     addReplyLongLong(c, count);
 }
 
@@ -2737,11 +2821,13 @@ void zrevrangebylexCommand(redisClient *c) {
 void zcardCommand(redisClient *c) {
     robj *key = c->argv[1];
     robj *zobj;
+    int zlen;
 
     if ((zobj = lookupKeyReadOrReply(c,key,shared.czero)) == NULL ||
         checkType(c,zobj,REDIS_ZSET)) return;
-
-    addReplyLongLong(c,zsetLength(zobj));
+    zlen=zsetLength(zobj);
+    addFujitsuReplyHeader(c,getReplyLongLongPrefixLen(c,zlen));
+    addReplyLongLong(c,zlen);
 }
 
 void zscoreCommand(redisClient *c) {

@@ -488,8 +488,10 @@ int getDoubleFromObjectOrReply(redisClient *c, robj *o, double *target, const ch
     double value;
     if (getDoubleFromObject(o, &value) != REDIS_OK) {
         if (msg != NULL) {
+        	addFujitsuReplyHeader(c, strlen((char*)msg)+7);
             addReplyError(c,(char*)msg);
         } else {
+        	addFujitsuReplyHeader(c, strlen("value is not a valid float")+7);
             addReplyError(c,"value is not a valid float");
         }
         return REDIS_ERR;
