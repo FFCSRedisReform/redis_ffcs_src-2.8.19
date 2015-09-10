@@ -71,6 +71,7 @@ void setGenericCommand(redisClient *c, int flags, robj *key, robj *val, robj *ex
         if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != REDIS_OK)
             return;
         if (milliseconds <= 0) {
+        	addFujitsuReplyHeader(c,strlen("invalid expire time in ")+strlen(c->cmd->name)+7);
             addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name);
             return;
         }
@@ -80,6 +81,7 @@ void setGenericCommand(redisClient *c, int flags, robj *key, robj *val, robj *ex
     if ((flags & REDIS_SET_NX && lookupKeyWrite(c->db,key) != NULL) ||
         (flags & REDIS_SET_XX && lookupKeyWrite(c->db,key) == NULL))
     {
+    	addFujitsuReplyHeader(c,sdslen(abort_reply ? ((abort_reply)->ptr) : ((shared.nullbulk)->ptr)));
         addReply(c, abort_reply ? abort_reply : shared.nullbulk);
         return;
     }
