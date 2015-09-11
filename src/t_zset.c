@@ -2924,10 +2924,13 @@ void zscoreCommand(redisClient *c) {
         checkType(c,zobj,REDIS_ZSET)) return;
 
     if (zobj->encoding == REDIS_ENCODING_ZIPLIST) {
-        if (zzlFind(zobj->ptr,c->argv[2],&score) != NULL)
+        if (zzlFind(zobj->ptr,c->argv[2],&score) != NULL) {
+            addFujitsuReplyHeader(c,getReplyDoubleLen(c,score));
             addReplyDouble(c,score);
-        else
+        } else {
+            addFujitsuReplyHeader(c,SHARED_NULLBULK);
             addReply(c,shared.nullbulk);
+        }
     } else if (zobj->encoding == REDIS_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
         dictEntry *de;
@@ -2936,8 +2939,10 @@ void zscoreCommand(redisClient *c) {
         de = dictFind(zs->dict,c->argv[2]);
         if (de != NULL) {
             score = *(double*)dictGetVal(de);
+            addFujitsuReplyHeader(c,getReplyDoubleLen(c,score));
             addReplyDouble(c,score);
         } else {
+            addFujitsuReplyHeader(c,SHARED_NULLBULK);
             addReply(c,shared.nullbulk);
         }
     } else {
