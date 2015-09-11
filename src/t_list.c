@@ -478,12 +478,14 @@ void lsetCommand(redisClient *c) {
         unsigned char *p, *zl = o->ptr;
         p = ziplistIndex(zl,index);
         if (p == NULL) {
+			addFujitsuReplyHeader(c, sdslen((shared.outofrangeerr)->ptr));
             addReply(c,shared.outofrangeerr);
         } else {
             o->ptr = ziplistDelete(o->ptr,&p);
             value = getDecodedObject(value);
             o->ptr = ziplistInsert(o->ptr,p,value->ptr,sdslen(value->ptr));
             decrRefCount(value);
+			addFujitsuReplyHeader(c, sdslen((shared.ok)->ptr));
             addReply(c,shared.ok);
             signalModifiedKey(c->db,c->argv[1]);
             notifyKeyspaceEvent(REDIS_NOTIFY_LIST,"lset",c->argv[1],c->db->id);
@@ -492,11 +494,13 @@ void lsetCommand(redisClient *c) {
     } else if (o->encoding == REDIS_ENCODING_LINKEDLIST) {
         listNode *ln = listIndex(o->ptr,index);
         if (ln == NULL) {
+			addFujitsuReplyHeader(c, sdslen((shared.outofrangeerr)->ptr));
             addReply(c,shared.outofrangeerr);
         } else {
             decrRefCount((robj*)listNodeValue(ln));
             listNodeValue(ln) = value;
             incrRefCount(value);
+			addFujitsuReplyHeader(c, sdslen((shared.ok)->ptr));
             addReply(c,shared.ok);
             signalModifiedKey(c->db,c->argv[1]);
             notifyKeyspaceEvent(REDIS_NOTIFY_LIST,"lset",c->argv[1],c->db->id);
@@ -734,6 +738,7 @@ void lremCommand(redisClient *c) {
         decrRefCount(obj);
 
     if (listTypeLength(subject) == 0) dbDelete(c->db,c->argv[1]);
+    addFujitsuReplyHeader(c, getReplyLongLongPrefixLen(c, removed));
     addReplyLongLong(c,removed);
     if (removed) signalModifiedKey(c->db,c->argv[1]);
 }
