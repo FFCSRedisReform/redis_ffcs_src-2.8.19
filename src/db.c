@@ -297,10 +297,10 @@ void delCommand(redisClient *c) {
 void existsCommand(redisClient *c) {
     expireIfNeeded(c->db,c->argv[1]);
     if (dbExists(c->db,c->argv[1])) {
-        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
+        addFujitsuReplyHeader(c, SHARED_LEN_CONE);
         addReply(c, shared.cone);
     } else {
-        addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
+        addFujitsuReplyHeader(c, SHARED_LEN_CZERO);
         addReply(c, shared.czero);
     }
 }
@@ -893,7 +893,7 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
 
     /* No key, return zero. */
     if (lookupKeyRead(c->db,key) == NULL) {
-    	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
+    	addFujitsuReplyHeader(c, SHARED_LEN_CZERO);
         addReply(c,shared.czero);
         return;
     }
@@ -916,12 +916,12 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
         decrRefCount(aux);
         signalModifiedKey(c->db,key);
         notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);
-        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
+        addFujitsuReplyHeader(c, SHARED_LEN_CONE);
         addReply(c, shared.cone);
         return;
     } else {
         setExpire(c->db,key,when);
-        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
+        addFujitsuReplyHeader(c, SHARED_LEN_CONE);
         addReply(c,shared.cone);
         signalModifiedKey(c->db,key);
         notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"expire",key,c->db->id);

@@ -464,9 +464,9 @@ int getReplyLongLongPrefixLen(redisClient *c, long long ll) {
 	(void)c;
 
     if (ll == 0) {
-		return sdslen((shared.czero)->ptr);
+		return SHARED_LEN_CZERO;
 	} else if (ll == 1) {
-		return sdslen((shared.cone)->ptr);
+		return SHARED_LEN_CONE;
 	} else {
 		 char buf[128];
 		 int len;

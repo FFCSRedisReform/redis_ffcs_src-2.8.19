@@ -466,7 +466,7 @@ void hashTypeConvert(robj *o, int enc) {
  *----------------------------------------------------------------------------*/
 
 void hsetCommand(redisClient *c) {
-    int update, bodylen;
+    int update;
     robj *o;
 
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
@@ -474,8 +474,7 @@ void hsetCommand(redisClient *c) {
     hashTypeTryObjectEncoding(o,&c->argv[2], &c->argv[3]);
     update = hashTypeSet(o,c->argv[2],c->argv[3]);
 
-	bodylen = sdslen(update ? (shared.czero)->ptr : (shared.cone)->ptr);
-	addFujitsuReplyHeader(c, bodylen);
+	addFujitsuReplyHeader(c, update ? SHARED_LEN_CZERO : SHARED_LEN_CONE);
 	
     addReply(c, update ? shared.czero : shared.cone);
     signalModifiedKey(c->db,c->argv[1]);
@@ -489,12 +488,12 @@ void hsetnxCommand(redisClient *c) {
     hashTypeTryConversion(o,c->argv,2,3);
 
     if (hashTypeExists(o, c->argv[2])) {
-    	addFujitsuReplyHeader(c, sdslen((shared.czero)->ptr));
+    	addFujitsuReplyHeader(c, SHARED_LEN_CZERO);
         addReply(c, shared.czero);
     } else {
         hashTypeTryObjectEncoding(o,&c->argv[2], &c->argv[3]);
         hashTypeSet(o,c->argv[2],c->argv[3]);
-        addFujitsuReplyHeader(c, sdslen((shared.cone)->ptr));
+        addFujitsuReplyHeader(c, SHARED_LEN_CONE);
         addReply(c, shared.cone);
         signalModifiedKey(c->db,c->argv[1]);
         notifyKeyspaceEvent(REDIS_NOTIFY_HASH,"hset",c->argv[1],c->db->id);
@@ -518,7 +517,7 @@ void hmsetCommand(redisClient *c) {
         hashTypeTryObjectEncoding(o,&c->argv[i], &c->argv[i+1]);
         hashTypeSet(o,c->argv[i],c->argv[i+1]);
     }
-    addFujitsuReplyHeader(c, sdslen((shared.ok)->ptr));
+    addFujitsuReplyHeader(c, SHARED_LEN_OK);
     addReply(c, shared.ok);
     signalModifiedKey(c->db,c->argv[1]);
     notifyKeyspaceEvent(REDIS_NOTIFY_HASH,"hset",c->argv[1],c->db->id);
@@ -618,7 +617,7 @@ int getHashFieldToReply(redisClient *c, robj *o, robj *field) {
 
         ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
         if (ret < 0) {
-        	len += sdslen((shared.nullbulk)->ptr);
+        	len += SHARED_NULLBULK;
         } else {
             if (vstr) {
 				len += getReplyBulkCBufferLen(c, vlen);
@@ -632,7 +631,7 @@ int getHashFieldToReply(redisClient *c, robj *o, robj *field) {
 
         ret = hashTypeGetFromHashTable(o, field, &value);
         if (ret < 0) {
-			len += sdslen((shared.nullbulk)->ptr);
+			len += SHARED_NULLBULK;
         } else {
 			len += getReplyBulkLenOrgi(c, value);
         }
@@ -701,7 +700,7 @@ void hmgetCommand(redisClient *c) {
      * hashes, where HMGET should respond with a series of null bulks. */
     o = lookupKeyRead(c->db, c->argv[1]);
     if (o != NULL && o->type != REDIS_HASH) {
-    	addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
+    	addFujitsuReplyHeader(c, SHARED_WRONGTYPEERR);
         addReply(c, shared.wrongtypeerr);
         return;
     }

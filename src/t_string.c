@@ -66,7 +66,6 @@ static int checkStringLength(redisClient *c, long long size) {
 
 void setGenericCommand(redisClient *c, int flags, robj *key, robj *val, robj *expire, int unit, robj *ok_reply, robj *abort_reply) {
     long long milliseconds = 0; /* initialized to avoid any harmness warning */
-	int bodyLen;
     if (expire) {
         if (getLongLongFromObjectOrReply(c, expire, &milliseconds, NULL) != REDIS_OK)
             return;
@@ -92,9 +91,7 @@ void setGenericCommand(redisClient *c, int flags, robj *key, robj *val, robj *ex
     if (expire) notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,
         "expire",key,c->db->id);
 
-
-	bodyLen = sdslen(ok_reply != NULL ? ok_reply->ptr : (shared.ok)->ptr);
-	addFujitsuReplyHeader(c, bodyLen);
+	addFujitsuReplyHeader(c, ok_reply ? sdslen(ok_reply->ptr) : SHARED_LEN_OK);
     addReply(c, ok_reply ? ok_reply : shared.ok);
 }
 
@@ -104,7 +101,6 @@ void setCommand(redisClient *c) {
     robj *expire = NULL;
     int unit = UNIT_SECONDS;
     int flags = REDIS_SET_NO_FLAGS;
-	int bodyLen;
 	
     for (j = 3; j < c->argc; j++) {
         char *a = c->argv[j]->ptr;
@@ -127,8 +123,7 @@ void setCommand(redisClient *c) {
             expire = next;
             j++;
         } else {
-			bodyLen = sdslen((shared.syntaxerr)->ptr);
-			addFujitsuReplyHeader(c, bodyLen);
+			addFujitsuReplyHeader(c, SHARED_LEN_SYNTAXERR);
             addReply(c,shared.syntaxerr);
             return;
         }
@@ -160,7 +155,7 @@ int getGenericCommand(redisClient *c) {
         return REDIS_OK;
 
     if (o->type != REDIS_STRING) {
-		addFujitsuReplyHeader(c, sdslen((shared.wrongtypeerr)->ptr));
+		addFujitsuReplyHeader(c, SHARED_WRONGTYPEERR);
         addReply(c,shared.wrongtypeerr);
         return REDIS_ERR;
     } else {
@@ -358,7 +353,6 @@ void msetnxCommand(redisClient *c) {
 void incrDecrCommand(redisClient *c, long long incr) {
     long long value, oldvalue;
     robj *o, *new;
-	int bodyLen;
 
     o = lookupKeyWrite(c->db,c->argv[1]);
     if (o != NULL && checkType(c,o,REDIS_STRING)) return;
@@ -381,8 +375,7 @@ void incrDecrCommand(redisClient *c, long long incr) {
     notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"incrby",c->argv[1],c->db->id);
     server.dirty++;
 
-    bodyLen = getReplyLongLongPrefixLen(c,value);
-	addFujitsuReplyHeader(c,bodyLen);
+	addFujitsuReplyHeader(c,getReplyLongLongPrefixLen(c,value));
 
     addReply(c,shared.colon);
     addReply(c,new);

@@ -549,6 +549,15 @@ struct sharedObjectsStruct {
     *bulkhdr[REDIS_SHARED_BULKHDR_LEN];  /* "$<value>\r\n" */
 };
 
+/* Precaculate the length of the robj  */
+#define SHARED_LEN_CZERO        4    // :0\r\n
+#define SHARED_LEN_CONE         4    // :1\r\n
+#define SHARED_LEN_OK           5    // +OK\r\n
+#define SHARED_LEN_ERR          6    // -ERR\r\n
+#define SHARED_NULLBULK         5    // $-1\r\n
+#define SHARED_LEN_SYNTAXERR   21    // -ERR syntax error\r\n
+#define SHARED_WRONGTYPEERR    70    // -WRONGTYPE Operation against a key holding the wrong kind of value\r\n
+
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
     robj *obj;
