@@ -576,7 +576,25 @@ int getReplyBulkLen(redisClient *c, robj *obj) {
 }
 
 int getReplyBulkLenOrgi(redisClient *c, robj *obj) {
-	return getReplyBulkLen(c, obj) + sdslen(obj->ptr) + sdslen((shared.crlf)->ptr);
+	size_t len;
+
+    if (obj->encoding == REDIS_ENCODING_RAW) {
+        len = sdslen(obj->ptr);
+    } else {
+        long n = (long)obj->ptr;
+
+        /* Compute how many bytes will take this integer as a radix 10 string */
+        len = 1;
+        if (n < 0) {
+            len++;
+            n = -n;
+        }
+        while((n = n/10) != 0) {
+            len++;
+        }
+    }
+
+	return getReplyBulkLen(c, obj) + len + sdslen((shared.crlf)->ptr);
 }
 
 /* Add a Redis Object as a bulk reply */
