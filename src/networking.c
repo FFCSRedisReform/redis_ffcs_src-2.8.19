@@ -359,7 +359,9 @@ void addReplyErrorLength(redisClient *c, char *s, size_t len) {
 }
 
 void addReplyError(redisClient *c, char *err) {
-    addReplyErrorLength(c,err,strlen(err));
+    int errLen = strlen(err);
+    addFujitsuReplyHeader(c,errLen);
+    addReplyErrorLength(c,err,errLen);
 }
 
 void addReplyErrorFormat(redisClient *c, const char *fmt, ...) {

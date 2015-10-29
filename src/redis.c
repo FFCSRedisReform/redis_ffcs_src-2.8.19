@@ -2081,13 +2081,16 @@ int processCommand(redisClient *c) {
          c->cmd->proc == pingCommand))
     {
         flagTransaction(c);
-        if (server.aof_last_write_status == REDIS_OK)
+        if (server.aof_last_write_status == REDIS_OK) {
+        	int errLen = sdslen(shared.bgsaveerr);
+        	addFujitsuReplyHeader(c, errLen);
             addReply(c, shared.bgsaveerr);
-        else
+        } else {
             addReplySds(c,
                 sdscatprintf(sdsempty(),
                 "-MISCONF Errors writing to the AOF file: %s\r\n",
                 strerror(server.aof_last_write_errno)));
+        }
         return REDIS_OK;
     }
 
@@ -2110,6 +2113,7 @@ int processCommand(redisClient *c) {
         !(c->flags & REDIS_MASTER) &&
         c->cmd->flags & REDIS_CMD_WRITE)
     {
+    	addFujitsuReplyHeader(c, sdslen((shared.roslaveerr)->ptr));
         addReply(c, shared.roslaveerr);
         return REDIS_OK;
     }
