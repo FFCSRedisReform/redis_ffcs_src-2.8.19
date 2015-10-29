@@ -2037,12 +2037,14 @@ int processCommand(redisClient *c) {
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
     if (!c->cmd) {
         flagTransaction(c);
+        addFujitsuReplyHeader(c, strlen("unknown command ")+strlen((char*)c->argv[0]->ptr)+7);
         addReplyErrorFormat(c,"unknown command '%s'",
             (char*)c->argv[0]->ptr);
         return REDIS_OK;
     } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
                (c->argc < -c->cmd->arity)) {
         flagTransaction(c);
+        addFujitsuReplyHeader(c, strlen("wrong number of arguments for  command")+strlen(c->cmd->name)+7);
         addReplyErrorFormat(c,"wrong number of arguments for '%s' command",
             c->cmd->name);
         return REDIS_OK;
@@ -2065,6 +2067,7 @@ int processCommand(redisClient *c) {
         int retval = freeMemoryIfNeeded();
         if ((c->cmd->flags & REDIS_CMD_DENYOOM) && retval == REDIS_ERR) {
             flagTransaction(c);
+            addFujitsuReplyHeader(c, sdslen((shared.oomerr)->ptr));
             addReply(c, shared.oomerr);
             return REDIS_OK;
         }
@@ -2082,16 +2085,14 @@ int processCommand(redisClient *c) {
     {
         flagTransaction(c);
         if (server.aof_last_write_status == REDIS_OK) {
-        	int errLen = sdslen(shared.bgsaveerr);
-        	addFujitsuReplyHeader(c, errLen);
+            addFujitsuReplyHeader(c, sdslen((shared.bgsaveerr)->ptr));
             addReply(c, shared.bgsaveerr);
-        } else {
+        } else
             sds buf = sdscatprintf(sdsempty(),
                     "-MISCONF Errors writing to the AOF file: %s\r\n",
                     strerror(server.aof_last_write_errno));
             addFujitsuReplyHeader(c, strlen(buf));
             addReplySds(c, buf);
-        }
         return REDIS_OK;
     }
 
@@ -2104,6 +2105,7 @@ int processCommand(redisClient *c) {
         server.repl_good_slaves_count < server.repl_min_slaves_to_write)
     {
         flagTransaction(c);
+        addFujitsuReplyHeader(c, sdslen((shared.noreplicaserr)->ptr));
         addReply(c, shared.noreplicaserr);
         return REDIS_OK;
     }
@@ -2114,7 +2116,7 @@ int processCommand(redisClient *c) {
         !(c->flags & REDIS_MASTER) &&
         c->cmd->flags & REDIS_CMD_WRITE)
     {
-    	addFujitsuReplyHeader(c, sdslen((shared.roslaveerr)->ptr));
+        addFujitsuReplyHeader(c, sdslen((shared.roslaveerr)->ptr));
         addReply(c, shared.roslaveerr);
         return REDIS_OK;
     }
@@ -2137,6 +2139,7 @@ int processCommand(redisClient *c) {
         !(c->cmd->flags & REDIS_CMD_STALE))
     {
         flagTransaction(c);
+        addFujitsuReplyHeader(c, sdslen((shared.masterdownerr)->ptr));
         addReply(c, shared.masterdownerr);
         return REDIS_OK;
     }
@@ -2144,6 +2147,7 @@ int processCommand(redisClient *c) {
     /* Loading DB? Return an error if the command has not the
      * REDIS_CMD_LOADING flag. */
     if (server.loading && !(c->cmd->flags & REDIS_CMD_LOADING)) {
+        addFujitsuReplyHeader(c, sdslen((shared.loadingerr)->ptr));
         addReply(c, shared.loadingerr);
         return REDIS_OK;
     }
