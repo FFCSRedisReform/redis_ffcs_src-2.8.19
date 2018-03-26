@@ -2568,7 +2568,7 @@ void zcountCommand(redisClient *c) {
 
     /* Parse the range arguments */
     if (zslParseRange(c->argv[2],c->argv[3],&range) != REDIS_OK) {
-    	addFujitsuReplyHeader(c,strlen("min or max is not a float"));
+    	addFujitsuReplyHeader(c,strlen("min or max is not a float") + 7);
         addReplyError(c,"min or max is not a float");
         return;
     }
