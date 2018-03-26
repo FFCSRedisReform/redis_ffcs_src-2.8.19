@@ -2087,12 +2087,13 @@ int processCommand(redisClient *c) {
         if (server.aof_last_write_status == REDIS_OK) {
             addFujitsuReplyHeader(c, sdslen((shared.bgsaveerr)->ptr));
             addReply(c, shared.bgsaveerr);
-        } else
+        } else {
             sds buf = sdscatprintf(sdsempty(),
                     "-MISCONF Errors writing to the AOF file: %s\r\n",
                     strerror(server.aof_last_write_errno));
             addFujitsuReplyHeader(c, strlen(buf));
             addReplySds(c, buf);
+        }
         return REDIS_OK;
     }
 
