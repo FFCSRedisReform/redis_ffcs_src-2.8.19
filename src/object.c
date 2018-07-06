@@ -565,7 +565,7 @@ int getLongLongFromObject(robj *o, long long *target) {
 int getLongLongFromObjectOrReply(redisClient *c, robj *o, long long *target, const char *msg) {
     long long value;
     if (getLongLongFromObject(o, &value) != REDIS_OK) {
-    if (msg != NULL) {
+		if (msg != NULL) {
 			addFujitsuReplyHeader(c, strlen((char*)msg)+7);
             addReplyError(c,(char*)msg);
         } else {

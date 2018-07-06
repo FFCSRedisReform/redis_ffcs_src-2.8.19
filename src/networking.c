@@ -339,6 +339,7 @@ void addFujitsuReplyHeader(redisClient *c, int bodyLen) {
 
 	if (c->sequence_id > 0) {
 		n = snprintf(buf, 128, "%s%lld:%d\r\n", FUJITSU_HEADER, c->sequence_id, bodyLen);
+		c->sequence_id = -1;
 		assert(n < 128);
 
 		addReplyString(c, buf, n);
@@ -1014,7 +1015,7 @@ void resetClient(redisClient *c) {
     c->reqtype = 0;
     c->multibulklen = 0;
     c->bulklen = -1;
-    c->sequence_id = -1;
+    //c->sequence_id = -1;
     /* We clear the ASKING flag as well if we are not inside a MULTI. */
     if (!(c->flags & REDIS_MULTI)) c->flags &= (~REDIS_ASKING);
 

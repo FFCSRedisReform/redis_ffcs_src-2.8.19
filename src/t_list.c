@@ -1121,6 +1121,9 @@ void blockingPopGenericCommand(redisClient *c, int where) {
         o = lookupKeyWrite(c->db,c->argv[j]);
         if (o != NULL) {
             if (o->type != REDIS_LIST) {
+                //=====================fujitsu begin
+                addFujitsuReplyHeader(c,sdslen((shared.wrongtypeerr)->ptr));
+                //=====================fujitsu end
                 addReply(c,shared.wrongtypeerr);
                 return;
             } else {
@@ -1130,6 +1133,13 @@ void blockingPopGenericCommand(redisClient *c, int where) {
                     robj *value = listTypePop(o,where);
                     redisAssert(value != NULL);
 
+                    //=====================fujitsu begin
+                    int bodyLen = 0;
+                    bodyLen += getReplyLongLongPrefixLen(c,2);
+                    bodyLen += getReplyBulkLenOrgi(c,c->argv[j]);
+                    bodyLen += getReplyBulkLenOrgi(c,value);
+                    addFujitsuReplyHeader(c,bodyLen);
+                    //=====================fujitsu end
                     addReplyMultiBulkLen(c,2);
                     addReplyBulk(c,c->argv[j]);
                     addReplyBulk(c,value);
@@ -1157,6 +1167,9 @@ void blockingPopGenericCommand(redisClient *c, int where) {
     /* If we are inside a MULTI/EXEC and the list is empty the only thing
      * we can do is treating it as a timeout (even with timeout 0). */
     if (c->flags & REDIS_MULTI) {
+        //=====================fujitsu begin
+        addFujitsuReplyHeader(c, sdslen((shared.nullmultibulk)->ptr));
+        //=====================fujitsu end
         addReply(c,shared.nullmultibulk);
         return;
     }

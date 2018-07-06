@@ -867,6 +867,9 @@ int clientsCronHandleTimeout(redisClient *c) {
         return 1;
     } else if (c->flags & REDIS_BLOCKED) {
         if (c->bpop.timeout != 0 && c->bpop.timeout < now) {
+            //=====================fujitsu begin
+			addFujitsuReplyHeader(c, sdslen((shared.nullmultibulk)->ptr));
+            //=====================fujitsu end
             addReply(c,shared.nullmultibulk);
             unblockClientWaitingData(c);
         }
